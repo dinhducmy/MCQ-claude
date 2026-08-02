@@ -91,7 +91,7 @@ Dự án được triển khai tuần tự theo 5 bước:
 
 1. ✅ Scaffold dự án + giao diện tải file
 2. ✅ Bóc tách file + đánh số vị trí trang/đề mục
-3. ⏳ API sinh câu hỏi + xác minh trích dẫn
+3. ✅ API sinh câu hỏi + xác minh trích dẫn
 4. ⏳ Bảng xem/sửa/sinh lại câu hỏi
 5. ⏳ Xuất file .docx/.xlsx/.csv
 
@@ -108,3 +108,22 @@ Dự án được triển khai tuần tự theo 5 bước:
   cùng heuristic heading như PDF.
 - Tài liệu được chia thành các đoạn (`chunk`) ~1800 ký tự, mỗi đoạn giữ nguyên
   vị trí trang/đề mục để phục vụ trích dẫn và xác minh ở bước sinh câu hỏi.
+
+### Sinh câu hỏi + xác minh trích dẫn (bước 3)
+
+- Gọi Anthropic API (`@anthropic-ai/sdk`, model `claude-sonnet-4-6`) theo lô
+  tối đa 5 câu/lượt cho từng mức Bloom, giữ nguyên các câu đã sinh thành công
+  giữa các lô.
+- Prompt yêu cầu model trả về JSON thuần (không markdown), liệt kê đầy đủ ràng
+  buộc chất lượng (4 lựa chọn, cấm "tất cả đều đúng"/"không câu nào đúng", độ
+  dài lựa chọn tương đương, vignette lâm sàng bắt buộc từ mức Vận dụng trở
+  lên, giải thích cụ thể cho từng phương án sai).
+- Parse JSON có try/catch, tự bóc tách nếu model lỡ kèm code fence.
+- Xác minh trích dẫn tự động: mỗi `citation.quote` được so khớp với nguyên
+  văn tài liệu sau khi chuẩn hóa khoảng trắng/dấu câu; câu không khớp bị loại
+  và hệ thống tự sinh lại phần thiếu, tối đa 2 lần. Nếu vẫn thiếu, trả về ít
+  câu hơn kèm cảnh báo rõ ràng — không bù bằng câu tự bịa.
+- Lỗi mạng/API (timeout, 429, 5xx) tự động retry với exponential backoff, tối
+  đa 3 lần.
+- Tiến trình sinh câu hỏi hiển thị theo từng mức Bloom qua API dạng streaming
+  NDJSON (`/api/generate`).

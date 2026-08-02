@@ -14,7 +14,12 @@ import {
 import { FileDropzone } from "@/components/upload/file-dropzone";
 import { DocumentPreview } from "@/components/upload/document-preview";
 import { StepIndicator, type StepDef } from "@/components/workflow/step-indicator";
-import type { ParsedDocument } from "@/lib/types";
+import {
+  GenerationConfigForm,
+  type GenerationRequestPayload,
+} from "@/components/config/generation-config-form";
+import { GenerationProgress } from "@/components/generate/generation-progress";
+import type { MCQQuestion, ParsedDocument } from "@/lib/types";
 
 const STEPS: StepDef[] = [
   { id: 1, label: "Tải lên" },
@@ -30,8 +35,18 @@ export function AppShell() {
     null,
   );
   const [, setUploadedFile] = useState<File | null>(null);
+  const [generationPayload, setGenerationPayload] =
+    useState<GenerationRequestPayload | null>(null);
+  const [questions, setQuestions] = useState<MCQQuestion[] | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
-  const maxUnlockedStep = parsedDocument ? 2 : 1;
+  const maxUnlockedStep = questions
+    ? 4
+    : generationPayload
+      ? 3
+      : parsedDocument
+        ? 2
+        : 1;
 
   function handleParsed(doc: ParsedDocument, file: File) {
     setParsedDocument(doc);
@@ -41,7 +56,25 @@ export function AppShell() {
   function handleReset() {
     setParsedDocument(null);
     setUploadedFile(null);
+    setGenerationPayload(null);
+    setQuestions(null);
+    setGenerationError(null);
     setCurrentStep(1);
+  }
+
+  function handleConfigSubmit(payload: GenerationRequestPayload) {
+    setGenerationError(null);
+    setQuestions(null);
+    setGenerationPayload(payload);
+    setCurrentStep(3);
+  }
+
+  function handleGenerationComplete(result: MCQQuestion[]) {
+    setQuestions(result);
+  }
+
+  function handleGenerationError(message: string) {
+    setGenerationError(message);
   }
 
   return (
@@ -91,12 +124,61 @@ export function AppShell() {
         </Card>
       )}
 
-      {currentStep === 2 && (
+      {currentStep === 2 && parsedDocument && (
         <Card>
           <CardHeader>
             <CardTitle>Bước 2 · Cấu hình sinh câu hỏi</CardTitle>
             <CardDescription>
-              Sẽ được triển khai ở bước tiếp theo.
+              Nhập số lượng câu hỏi cho từng mức Bloom, chọn đối tượng học và
+              phạm vi nội dung.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <GenerationConfigForm
+              outline={parsedDocument.outline}
+              onSubmit={handleConfigSubmit}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {currentStep === 3 && parsedDocument && generationPayload && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Bước 3 · Đang sinh câu hỏi</CardTitle>
+            <CardDescription>
+              Hệ thống sinh câu hỏi theo lô cho từng mức Bloom và xác minh
+              trích dẫn tự động.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <GenerationProgress
+              key={JSON.stringify(generationPayload)}
+              chunks={parsedDocument.chunks}
+              payload={generationPayload}
+              onComplete={handleGenerationComplete}
+              onError={handleGenerationError}
+            />
+            {generationError && (
+              <p className="text-sm text-destructive">{generationError}</p>
+            )}
+            {questions && (
+              <Button onClick={() => setCurrentStep(4)}>
+                Xem {questions.length} câu hỏi đã sinh
+                <ArrowRight className="size-4" />
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {currentStep === 4 && questions && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Bước 4 · Xem & sửa câu hỏi</CardTitle>
+            <CardDescription>
+              Đã sinh {questions.length} câu hỏi. Bảng xem/sửa/sinh lại sẽ
+              được triển khai ở bước tiếp theo.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -111,15 +193,15 @@ export function AppShell() {
           <ArrowLeft className="size-4" />
           Quay lại
         </Button>
-        <Button
-          disabled={currentStep >= maxUnlockedStep || currentStep >= 2}
-          onClick={() =>
-            setCurrentStep((s) => Math.min(maxUnlockedStep, s + 1))
-          }
-        >
-          Tiếp tục
-          <ArrowRight className="size-4" />
-        </Button>
+        {currentStep === 1 && (
+          <Button
+            disabled={!parsedDocument}
+            onClick={() => setCurrentStep(2)}
+          >
+            Tiếp tục
+            <ArrowRight className="size-4" />
+          </Button>
+        )}
       </div>
     </div>
   );
