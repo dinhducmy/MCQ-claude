@@ -13,6 +13,7 @@ export interface GenerateLevelParams {
   requestedCount: number;
   audience: AudienceValue;
   chunks: DocChunk[];
+  avoidStems?: string[];
   onProgress?: (generated: number, requested: number) => void;
 }
 
@@ -96,13 +97,21 @@ async function runOneGeneration(
 export async function generateBloomLevelQuestions(
   params: GenerateLevelParams,
 ): Promise<GenerateLevelResult> {
-  const { bloomLevel, requestedCount, audience, chunks, onProgress } = params;
+  const {
+    bloomLevel,
+    requestedCount,
+    audience,
+    chunks,
+    avoidStems: seedAvoidStems,
+    onProgress,
+  } = params;
 
   if (requestedCount <= 0 || chunks.length === 0) {
     return { questions: [], requested: requestedCount };
   }
 
   const accepted: MCQQuestion[] = [];
+  const priorStems = seedAvoidStems ?? [];
   onProgress?.(0, requestedCount);
 
   const batches = splitIntoBatches(requestedCount, MAX_QUESTIONS_PER_BATCH);
@@ -112,7 +121,7 @@ export async function generateBloomLevelQuestions(
       batchSize,
       audience,
       chunks,
-      accepted.map((q) => q.stem),
+      [...priorStems, ...accepted.map((q) => q.stem)],
     );
     accepted.push(...batchQuestions);
     onProgress?.(Math.min(accepted.length, requestedCount), requestedCount);
@@ -127,7 +136,7 @@ export async function generateBloomLevelQuestions(
       Math.min(shortfall, MAX_QUESTIONS_PER_BATCH),
       audience,
       chunks,
-      accepted.map((q) => q.stem),
+      [...priorStems, ...accepted.map((q) => q.stem)],
     );
     accepted.push(...retryQuestions);
     onProgress?.(Math.min(accepted.length, requestedCount), requestedCount);

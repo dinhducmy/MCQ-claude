@@ -92,7 +92,7 @@ Dự án được triển khai tuần tự theo 5 bước:
 1. ✅ Scaffold dự án + giao diện tải file
 2. ✅ Bóc tách file + đánh số vị trí trang/đề mục
 3. ✅ API sinh câu hỏi + xác minh trích dẫn
-4. ⏳ Bảng xem/sửa/sinh lại câu hỏi
+4. ✅ Bảng xem/sửa/sinh lại câu hỏi
 5. ⏳ Xuất file .docx/.xlsx/.csv
 
 ### Bóc tách tài liệu (bước 2)
@@ -127,3 +127,12 @@ Dự án được triển khai tuần tự theo 5 bước:
   đa 3 lần.
 - Tiến trình sinh câu hỏi hiển thị theo từng mức Bloom qua API dạng streaming
   NDJSON (`/api/generate`).
+
+### Xem & sửa câu hỏi (bước 4)
+
+- Bảng kết quả với bộ lọc theo mức Bloom.
+- Sửa trực tiếp mọi trường của câu hỏi (nội dung, 4 lựa chọn, đáp án đúng,
+  giải thích đúng/sai, trích dẫn, mục tiêu học tập) qua hộp thoại chỉnh sửa.
+- Xóa từng câu (có xác nhận trước khi xóa).
+- Sinh lại riêng từng câu qua API `/api/regenerate` — giữ nguyên vị trí
+  trong bảng, tránh trùng lặp với các câu còn lại trong phiên làm việc.

@@ -10,6 +10,7 @@ import {
   type MCQQuestion,
 } from "@/lib/types";
 import { generateBloomLevelQuestions } from "@/lib/generation/generate-level";
+import { filterChunksByScope } from "@/lib/generation/filter-chunks";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -33,20 +34,6 @@ type StreamEvent =
   | { type: "warning"; bloomLevel: BloomLevel; message: string }
   | { type: "error"; message: string }
   | { type: "complete" };
-
-function filterChunksByScope(
-  chunks: DocChunk[],
-  scopeMode: "all" | "sections",
-  selectedSectionTitles: string[] | undefined,
-): DocChunk[] {
-  if (scopeMode === "all" || !selectedSectionTitles?.length) {
-    return chunks;
-  }
-  const selectedSet = new Set(selectedSectionTitles);
-  return chunks.filter((chunk) =>
-    chunk.headingPath.some((heading) => selectedSet.has(heading)),
-  );
-}
 
 function validateBody(body: unknown): body is GenerateRequestBody {
   if (typeof body !== "object" || body === null) return false;

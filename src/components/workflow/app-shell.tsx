@@ -19,6 +19,8 @@ import {
   type GenerationRequestPayload,
 } from "@/components/config/generation-config-form";
 import { GenerationProgress } from "@/components/generate/generation-progress";
+import { QuestionsTable } from "@/components/review/questions-table";
+import { filterChunksByScope } from "@/lib/generation/filter-chunks";
 import type { MCQQuestion, ParsedDocument } from "@/lib/types";
 
 const STEPS: StepDef[] = [
@@ -172,15 +174,27 @@ export function AppShell() {
         </Card>
       )}
 
-      {currentStep === 4 && questions && (
+      {currentStep === 4 && questions && parsedDocument && generationPayload && (
         <Card>
           <CardHeader>
             <CardTitle>Bước 4 · Xem & sửa câu hỏi</CardTitle>
             <CardDescription>
-              Đã sinh {questions.length} câu hỏi. Bảng xem/sửa/sinh lại sẽ
-              được triển khai ở bước tiếp theo.
+              Đã sinh {questions.length} câu hỏi. Lọc theo mức Bloom, sửa trực
+              tiếp, xóa hoặc sinh lại riêng từng câu.
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <QuestionsTable
+              questions={questions}
+              onChange={setQuestions}
+              chunks={filterChunksByScope(
+                parsedDocument.chunks,
+                generationPayload.scopeMode,
+                generationPayload.selectedSectionTitles,
+              )}
+              audience={generationPayload.audience}
+            />
+          </CardContent>
         </Card>
       )}
 
