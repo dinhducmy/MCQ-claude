@@ -90,7 +90,21 @@ src/
 Dự án được triển khai tuần tự theo 5 bước:
 
 1. ✅ Scaffold dự án + giao diện tải file
-2. ⏳ Bóc tách file + đánh số vị trí trang/đề mục
+2. ✅ Bóc tách file + đánh số vị trí trang/đề mục
 3. ⏳ API sinh câu hỏi + xác minh trích dẫn
 4. ⏳ Bảng xem/sửa/sinh lại câu hỏi
 5. ⏳ Xuất file .docx/.xlsx/.csv
+
+### Bóc tách tài liệu (bước 2)
+
+- `.pdf`: dùng `pdf-parse`, trích văn bản theo từng trang, phát hiện heading
+  bằng heuristic (Chương/Phần/Bài/Mục, đánh số 1./1.1/I., dòng IN HOA), vị trí
+  trích dẫn hiển thị dạng "Trang N". PDF không có lớp văn bản (bản scan) sẽ bị
+  từ chối với thông báo yêu cầu OCR trước.
+- `.docx`: dùng `mammoth` chuyển sang HTML rồi phân tích bằng `cheerio`, heading
+  lấy trực tiếp từ style Heading 1–6, vị trí trích dẫn hiển thị dạng breadcrumb
+  đề mục (ví dụ "Chương 1 › 1.2 Chẩn đoán").
+- `.txt`/`.md`: `.md` nhận diện tiêu đề Markdown (`#`…`######`); `.txt` dùng
+  cùng heuristic heading như PDF.
+- Tài liệu được chia thành các đoạn (`chunk`) ~1800 ký tự, mỗi đoạn giữ nguyên
+  vị trí trang/đề mục để phục vụ trích dẫn và xác minh ở bước sinh câu hỏi.

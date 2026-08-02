@@ -4,6 +4,13 @@ import {
   MAX_FILE_SIZE_BYTES,
   type ParsedDocument,
 } from "@/lib/types";
+import {
+  DocumentParseError,
+  ScannedPdfError,
+  parseDocument,
+} from "@/lib/parsing";
+
+export const runtime = "nodejs";
 
 function getExtension(fileName: string): string {
   const idx = fileName.lastIndexOf(".");
@@ -11,18 +18,28 @@ function getExtension(fileName: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const formData = await req.formData();
-  const file = formData.get("file");
-
-  if (!file || !(file instanceof File)) {
+  let file: File;
+  try {
+    const formData = await req.formData();
+    const f = formData.get("file");
+    if (!f || !(f instanceof File)) {
+      return NextResponse.json(
+        { error: "Không tìm thấy file trong yêu cầu." },
+        { status: 400 },
+      );
+    }
+    file = f;
+  } catch {
     return NextResponse.json(
-      { error: "Không tìm thấy file trong yêu cầu." },
+      { error: "Không thể đọc dữ liệu tải lên." },
       { status: 400 },
     );
   }
 
   const ext = getExtension(file.name);
-  if (!ACCEPTED_EXTENSIONS.includes(ext as (typeof ACCEPTED_EXTENSIONS)[number])) {
+  if (
+    !ACCEPTED_EXTENSIONS.includes(ext as (typeof ACCEPTED_EXTENSIONS)[number])
+  ) {
     return NextResponse.json(
       {
         error: `Định dạng file "${ext || "không xác định"}" không được hỗ trợ. Vui lòng tải lên file .pdf, .docx, .txt hoặc .md.`,
@@ -49,18 +66,25 @@ export async function POST(req: NextRequest) {
 
   const fileType = ext.slice(1) as ParsedDocument["fileType"];
 
-  const result: ParsedDocument = {
-    fileName: file.name,
-    fileType,
-    sizeBytes: file.size,
-    pageCount: null,
-    wordCount: 0,
-    outline: [],
-    chunks: [],
-    warnings: [
-      "Bóc tách nội dung đầy đủ sẽ được triển khai ở bước tiếp theo.",
-    ],
-  };
-
-  return NextResponse.json(result);
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const result = await parseDocument(file.name, fileType, buffer);
+    return NextResponse.json(result);
+  } catch (err) {
+    if (err instanceof ScannedPdfError) {
+      return NextResponse.json({ error: err.message }, { status: 422 });
+    }
+    if (err instanceof DocumentParseError) {
+      return NextResponse.json({ error: err.message }, { status: 422 });
+    }
+    console.error("Lỗi bóc tách tài liệu:", err);
+    return NextResponse.json(
+      {
+        error:
+          "Có lỗi không mong muốn khi xử lý tài liệu. Vui lòng thử lại hoặc kiểm tra file.",
+      },
+      { status: 500 },
+    );
+  }
 }
