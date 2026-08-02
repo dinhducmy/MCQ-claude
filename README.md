@@ -75,14 +75,25 @@ npm run start
 ```
 src/
   app/
-    api/            # API routes (parse, generate, export)
-    page.tsx         # Trang chính
+    api/
+      parse/          # Bóc tách file tải lên
+      generate/        # Sinh câu hỏi (streaming NDJSON)
+      regenerate/       # Sinh lại 1 câu hỏi
+      export/           # Xuất .docx/.xlsx/.csv
+    page.tsx           # Trang chính
   components/
-    ui/              # Thành phần giao diện dùng chung (shadcn/ui)
-    upload/           # Thành phần tải & xem trước tài liệu
-    workflow/          # Điều phối luồng 5 bước
+    ui/                # Thành phần giao diện dùng chung (shadcn/ui)
+    upload/              # Tải & xem trước tài liệu
+    config/               # Form cấu hình sinh câu hỏi
+    generate/               # Thanh tiến trình sinh câu hỏi
+    review/                  # Bảng xem/sửa câu hỏi
+    export/                   # Bảng chọn định dạng xuất file
+    workflow/                  # Điều phối luồng 5 bước (app-shell)
   lib/
-    types.ts          # Kiểu dữ liệu dùng chung (câu hỏi, tài liệu, cấu hình)
+    types.ts            # Kiểu dữ liệu dùng chung
+    parsing/              # Module bóc tách PDF/DOCX/TXT/MD
+    generation/             # Prompt, gọi Anthropic API, xác minh trích dẫn
+    export/                   # Sinh file .docx/.xlsx/.csv
 ```
 
 ## Trạng thái triển khai
@@ -93,7 +104,7 @@ Dự án được triển khai tuần tự theo 5 bước:
 2. ✅ Bóc tách file + đánh số vị trí trang/đề mục
 3. ✅ API sinh câu hỏi + xác minh trích dẫn
 4. ✅ Bảng xem/sửa/sinh lại câu hỏi
-5. ⏳ Xuất file .docx/.xlsx/.csv
+5. ✅ Xuất file .docx/.xlsx/.csv
 
 ### Bóc tách tài liệu (bước 2)
 
@@ -136,3 +147,17 @@ Dự án được triển khai tuần tự theo 5 bước:
 - Xóa từng câu (có xác nhận trước khi xóa).
 - Sinh lại riêng từng câu qua API `/api/regenerate` — giữ nguyên vị trí
   trong bảng, tránh trùng lặp với các câu còn lại trong phiên làm việc.
+
+### Xuất file (bước 5)
+
+- API route `/api/export` sinh file theo yêu cầu (`docx-teacher`,
+  `docx-student`, `xlsx`, `csv`) và trả về dưới dạng file tải xuống
+  (`Content-Disposition: attachment`).
+- **Bản giảng viên (.docx)**: câu hỏi nhóm theo mức Bloom, đánh dấu đáp án
+  đúng, kèm giải thích đáp án đúng/sai và trích dẫn nguồn cho từng câu.
+- **Bản sinh viên (.docx)**: chỉ gồm nội dung câu hỏi và 4 lựa chọn — không
+  lộ đáp án hay giải thích.
+- **.xlsx / .csv**: toàn bộ dữ liệu câu hỏi dạng bảng (đủ các trường: câu
+  hỏi, 4 lựa chọn, đáp án đúng, giải thích đúng/sai từng phương án, trích
+  dẫn, vị trí, mục tiêu học tập). File CSV có UTF-8 BOM để mở đúng tiếng
+  Việt trên Excel.

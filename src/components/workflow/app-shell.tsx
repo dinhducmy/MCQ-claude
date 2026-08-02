@@ -20,6 +20,7 @@ import {
 } from "@/components/config/generation-config-form";
 import { GenerationProgress } from "@/components/generate/generation-progress";
 import { QuestionsTable } from "@/components/review/questions-table";
+import { ExportPanel } from "@/components/export/export-panel";
 import { filterChunksByScope } from "@/lib/generation/filter-chunks";
 import type { MCQQuestion, ParsedDocument } from "@/lib/types";
 
@@ -43,7 +44,7 @@ export function AppShell() {
   const [generationError, setGenerationError] = useState<string | null>(null);
 
   const maxUnlockedStep = questions
-    ? 4
+    ? 5
     : generationPayload
       ? 3
       : parsedDocument
@@ -183,7 +184,7 @@ export function AppShell() {
               tiếp, xóa hoặc sinh lại riêng từng câu.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <QuestionsTable
               questions={questions}
               onChange={setQuestions}
@@ -194,6 +195,27 @@ export function AppShell() {
               )}
               audience={generationPayload.audience}
             />
+            <Button
+              onClick={() => setCurrentStep(5)}
+              disabled={questions.length === 0}
+            >
+              Tiếp tục xuất file
+              <ArrowRight className="size-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {currentStep === 5 && questions && parsedDocument && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Bước 5 · Xuất file</CardTitle>
+            <CardDescription>
+              Tải về bộ câu hỏi dưới định dạng phù hợp với nhu cầu sử dụng.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ExportPanel questions={questions} title={parsedDocument.fileName} />
           </CardContent>
         </Card>
       )}
