@@ -74,6 +74,16 @@ export function validateQuestionShape(
   }
   const correctAnswer = q.correct_answer as (typeof OPTION_KEYS)[number];
 
+  const optionLengths = OPTION_KEYS.map((k) => options[k]?.toString().trim().length ?? 0);
+  const maxLength = Math.max(...optionLengths);
+  const longestKeys = OPTION_KEYS.filter((k, i) => optionLengths[i] === maxLength);
+  if (longestKeys.length === 1 && longestKeys[0] === correctAnswer) {
+    return {
+      ok: false,
+      reason: "Đáp án đúng là lựa chọn dài nhất — vi phạm quy tắc độ dài tương đương.",
+    };
+  }
+
   if (!isNonEmptyString(q.explanation_correct)) {
     return { ok: false, reason: "Thiếu giải thích cho đáp án đúng." };
   }

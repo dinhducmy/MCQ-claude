@@ -40,8 +40,7 @@ export const BLOOM_LEVEL_INFO: Record<
 };
 
 export const AUDIENCE_OPTIONS = [
-  { value: "sv-y2-y3", label: "Sinh viên Y2–Y3" },
-  { value: "sv-y4-y6", label: "Sinh viên Y4–Y6" },
+  { value: "sv-y2-y6", label: "Sinh viên Y2–Y6" },
   { value: "sau-dai-hoc", label: "Học viên sau đại học" },
   { value: "cme", label: "CME (đào tạo liên tục)" },
 ] as const;
