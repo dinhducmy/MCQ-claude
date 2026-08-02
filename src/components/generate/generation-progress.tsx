@@ -35,6 +35,7 @@ export function GenerationProgress({
   const [isFinished, setIsFinished] = useState(false);
   const startedRef = useRef(false);
   const questionsRef = useRef<MCQQuestion[]>([]);
+  const erroredRef = useRef(false);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -75,6 +76,11 @@ export function GenerationProgress({
         if (buffer.trim()) {
           handleEvent(JSON.parse(buffer));
         }
+
+        // Lỗi mà không sinh được câu nào: không báo hoàn tất (tránh hiển thị
+        // "đã sinh xong 0 câu hỏi" như thể thành công). Nếu lỗi giữa chừng
+        // nhưng đã có câu hợp lệ thì vẫn giữ lại các câu đó cho người dùng.
+        if (erroredRef.current && questionsRef.current.length === 0) return;
 
         setIsFinished(true);
         onComplete(questionsRef.current);
@@ -124,6 +130,7 @@ export function GenerationProgress({
         }));
         toast.warning(event.message);
       } else if (event.type === "error") {
+        erroredRef.current = true;
         toast.error(event.message || "Có lỗi khi sinh câu hỏi.");
         onError(event.message || "Có lỗi khi sinh câu hỏi.");
       }

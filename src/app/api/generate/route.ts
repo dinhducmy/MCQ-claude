@@ -11,6 +11,7 @@ import {
 } from "@/lib/types";
 import { generateBloomLevelQuestions } from "@/lib/generation/generate-level";
 import { filterChunksByScope } from "@/lib/generation/filter-chunks";
+import { toVietnameseErrorMessage } from "@/lib/generation/error-messages";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -118,6 +119,7 @@ export async function POST(req: NextRequest) {
       }
 
       try {
+        let windowOffset = 0;
         for (const bloomLevel of BLOOM_LEVELS) {
           const requested = body.counts[bloomLevel] || 0;
           if (requested <= 0) continue;
@@ -129,10 +131,12 @@ export async function POST(req: NextRequest) {
             requestedCount: requested,
             audience: body.audience,
             chunks: scopedChunks,
+            windowStartOffset: windowOffset,
             onProgress: (generated) => {
               send({ type: "progress", bloomLevel, generated, requested });
             },
           });
+          windowOffset += Math.ceil(requested / 5);
 
           send({
             type: "level_done",
@@ -147,9 +151,8 @@ export async function POST(req: NextRequest) {
 
         send({ type: "complete" });
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Có lỗi không xác định khi sinh câu hỏi.";
-        send({ type: "error", message });
+        console.error("Lỗi sinh câu hỏi:", err);
+        send({ type: "error", message: toVietnameseErrorMessage(err) });
       } finally {
         controller.close();
       }

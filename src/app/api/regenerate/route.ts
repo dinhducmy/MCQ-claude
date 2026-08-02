@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { BLOOM_LEVELS, type AudienceValue, type BloomLevel, type DocChunk } from "@/lib/types";
 import { generateBloomLevelQuestions } from "@/lib/generation/generate-level";
+import { toVietnameseErrorMessage } from "@/lib/generation/error-messages";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -57,6 +58,8 @@ export async function POST(req: NextRequest) {
       audience: body.audience,
       chunks: body.chunks,
       avoidStems: body.avoidStems,
+      // Đổi cửa sổ nội dung mỗi lần sinh lại để tránh lặp lại đúng phần cũ.
+      windowStartOffset: body.avoidStems?.length ?? 0,
     });
 
     if (result.questions.length === 0) {
@@ -71,8 +74,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ question: result.questions[0] });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Có lỗi không xác định khi sinh lại câu hỏi.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Lỗi sinh lại câu hỏi:", err);
+    return NextResponse.json(
+      { error: toVietnameseErrorMessage(err) },
+      { status: 500 },
+    );
   }
 }

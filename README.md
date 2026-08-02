@@ -38,6 +38,11 @@ ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 **Lưu ý:** Tuyệt đối không commit `.env.local` hoặc khóa API thật vào git.
 
+Nếu chưa cấu hình khóa, ứng dụng vẫn chạy và hiển thị cảnh báo kèm hướng dẫn
+ngay trên giao diện — các bước tải lên, xem trước, xem/sửa và xuất file vẫn
+dùng được, chỉ riêng bước sinh câu hỏi cần khóa API. Sau khi thêm khóa phải
+**khởi động lại server** để nạp biến môi trường mới.
+
 ## Chạy ứng dụng
 
 Chế độ phát triển:
@@ -125,6 +130,12 @@ Dự án được triển khai tuần tự theo 5 bước:
 - Gọi Anthropic API (`@anthropic-ai/sdk`, model `claude-sonnet-4-6`) theo lô
   tối đa 5 câu/lượt cho từng mức Bloom, giữ nguyên các câu đã sinh thành công
   giữa các lô.
+- **Cửa sổ nội dung**: tài liệu lớn KHÔNG được nhồi toàn bộ vào mỗi prompt.
+  Các chunk được gom thành cửa sổ ~12.000 ký tự; mỗi lô chỉ nhận một cửa sổ và
+  luân phiên qua toàn tài liệu để câu hỏi trải đều. Nhờ đó tài liệu 124.000 từ
+  giảm prompt từ ~643.000 xuống ~14.000 ký tự mỗi lần gọi (giảm ~46 lần), tránh
+  vượt giới hạn token và chi phí tăng vọt. Việc xác minh trích dẫn vẫn đối
+  chiếu với TOÀN BỘ tài liệu trong phạm vi đã chọn.
 - Prompt yêu cầu model trả về JSON thuần (không markdown), liệt kê đầy đủ ràng
   buộc chất lượng (4 lựa chọn, cấm "tất cả đều đúng"/"không câu nào đúng", độ
   dài lựa chọn tương đương, vignette lâm sàng bắt buộc từ mức Vận dụng trở

@@ -7,6 +7,10 @@ import {
   MAX_CITATION_RETRY_ROUNDS,
   MAX_QUESTIONS_PER_BATCH,
 } from "@/lib/generation/constants";
+import {
+  buildContextWindows,
+  selectWindowForBatch,
+} from "@/lib/generation/select-chunks";
 
 export interface GenerateLevelParams {
   bloomLevel: BloomLevel;
@@ -14,6 +18,8 @@ export interface GenerateLevelParams {
   audience: AudienceValue;
   chunks: DocChunk[];
   avoidStems?: string[];
+  /** Cửa sổ nội dung bắt đầu, để mỗi mức Bloom phủ phần khác nhau của tài liệu. */
+  windowStartOffset?: number;
   onProgress?: (generated: number, requested: number) => void;
 }
 
@@ -48,14 +54,15 @@ async function runOneGeneration(
   bloomLevel: BloomLevel,
   count: number,
   audience: AudienceValue,
-  chunks: DocChunk[],
+  promptChunks: DocChunk[],
+  verificationText: string,
   avoidStems: string[],
 ): Promise<MCQQuestion[]> {
   const { system, user } = buildGenerationPrompt({
     bloomLevel,
     count,
     audience,
-    chunks,
+    chunks: promptChunks,
     avoidStems,
   });
 
@@ -77,7 +84,6 @@ async function runOneGeneration(
     return [];
   }
 
-  const sourceText = sourceTextFor(chunks);
   const accepted: MCQQuestion[] = [];
 
   for (const rawQuestion of questionsRaw) {
@@ -85,7 +91,7 @@ async function runOneGeneration(
     if (!shapeResult.ok) continue;
 
     const q = rawQuestion as { citation: { quote: string } };
-    const citationResult = verifyCitation(q.citation.quote, sourceText);
+    const citationResult = verifyCitation(q.citation.quote, verificationText);
     if (!citationResult.ok) continue;
 
     accepted.push(toMCQQuestion(rawQuestion, nextQuestionId(bloomLevel)));
@@ -103,6 +109,7 @@ export async function generateBloomLevelQuestions(
     audience,
     chunks,
     avoidStems: seedAvoidStems,
+    windowStartOffset = 0,
     onProgress,
   } = params;
 
@@ -114,15 +121,23 @@ export async function generateBloomLevelQuestions(
   const priorStems = seedAvoidStems ?? [];
   onProgress?.(0, requestedCount);
 
+  // Tài liệu lớn được chia thành nhiều cửa sổ; mỗi lô chỉ nhận một cửa sổ
+  // để không vượt giới hạn token, và luân phiên để phủ đều tài liệu.
+  const windows = buildContextWindows(chunks);
+  const verificationText = sourceTextFor(chunks);
+  let windowCursor = windowStartOffset;
+
   const batches = splitIntoBatches(requestedCount, MAX_QUESTIONS_PER_BATCH);
   for (const batchSize of batches) {
     const batchQuestions = await runOneGeneration(
       bloomLevel,
       batchSize,
       audience,
-      chunks,
+      selectWindowForBatch(windows, windowCursor),
+      verificationText,
       [...priorStems, ...accepted.map((q) => q.stem)],
     );
+    windowCursor += 1;
     accepted.push(...batchQuestions);
     onProgress?.(Math.min(accepted.length, requestedCount), requestedCount);
   }
@@ -135,9 +150,11 @@ export async function generateBloomLevelQuestions(
       bloomLevel,
       Math.min(shortfall, MAX_QUESTIONS_PER_BATCH),
       audience,
-      chunks,
+      selectWindowForBatch(windows, windowCursor),
+      verificationText,
       [...priorStems, ...accepted.map((q) => q.stem)],
     );
+    windowCursor += 1;
     accepted.push(...retryQuestions);
     onProgress?.(Math.min(accepted.length, requestedCount), requestedCount);
   }

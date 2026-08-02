@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Stethoscope } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Stethoscope } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
 import { FileDropzone } from "@/components/upload/file-dropzone";
 import { DocumentPreview } from "@/components/upload/document-preview";
 import { StepIndicator, type StepDef } from "@/components/workflow/step-indicator";
+import { ApiKeyNotice } from "@/components/workflow/api-key-notice";
 import {
   GenerationConfigForm,
   type GenerationRequestPayload,
@@ -42,6 +43,7 @@ export function AppShell() {
     useState<GenerationRequestPayload | null>(null);
   const [questions, setQuestions] = useState<MCQQuestion[] | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generationRunId, setGenerationRunId] = useState(0);
 
   const maxUnlockedStep = questions
     ? 5
@@ -69,7 +71,14 @@ export function AppShell() {
     setGenerationError(null);
     setQuestions(null);
     setGenerationPayload(payload);
+    setGenerationRunId((n) => n + 1);
     setCurrentStep(3);
+  }
+
+  function handleRetryGeneration() {
+    setGenerationError(null);
+    setQuestions(null);
+    setGenerationRunId((n) => n + 1);
   }
 
   function handleGenerationComplete(result: MCQQuestion[]) {
@@ -96,6 +105,8 @@ export function AppShell() {
           </p>
         </div>
       </header>
+
+      <ApiKeyNotice />
 
       <Card>
         <CardContent>
@@ -155,15 +166,30 @@ export function AppShell() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <GenerationProgress
-              key={JSON.stringify(generationPayload)}
-              chunks={parsedDocument.chunks}
-              payload={generationPayload}
-              onComplete={handleGenerationComplete}
-              onError={handleGenerationError}
-            />
+            {/* Chỉ chạy khi chưa có kết quả — quay lại bước này không được
+                sinh lại từ đầu (tốn chi phí và mất các chỉnh sửa đã làm). */}
+            {questions === null ? (
+              <GenerationProgress
+                key={generationRunId}
+                chunks={parsedDocument.chunks}
+                payload={generationPayload}
+                onComplete={handleGenerationComplete}
+                onError={handleGenerationError}
+              />
+            ) : (
+              <p className="flex items-center gap-1.5 text-sm font-medium text-success">
+                <CheckCircle2 className="size-4" />
+                Đã sinh xong {questions.length} câu hỏi.
+              </p>
+            )}
             {generationError && (
-              <p className="text-sm text-destructive">{generationError}</p>
+              <div className="space-y-3">
+                <p className="text-sm text-destructive">{generationError}</p>
+                <Button variant="outline" onClick={handleRetryGeneration}>
+                  <RefreshCw className="size-4" />
+                  Thử lại
+                </Button>
+              </div>
             )}
             {questions && (
               <Button onClick={() => setCurrentStep(4)}>
