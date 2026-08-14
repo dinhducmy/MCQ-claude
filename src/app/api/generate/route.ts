@@ -12,6 +12,7 @@ import {
 import { generateBloomLevelQuestions } from "@/lib/generation/generate-level";
 import { filterChunksByScope } from "@/lib/generation/filter-chunks";
 import { toVietnameseErrorMessage } from "@/lib/generation/error-messages";
+import { ApiKeyError, resolveApiKey } from "@/lib/generation/resolve-api-key";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -21,7 +22,7 @@ interface GenerateRequestBody {
   counts: BloomCounts;
   audience: AudienceValue;
   scopeMode: "all" | "sections";
-  selectedSectionTitles?: string[];
+  selectedScopeKeys?: string[];
 }
 
 type StreamEvent =
@@ -85,20 +86,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  let apiKey: string;
+  try {
+    apiKey = resolveApiKey(req.headers);
+  } catch (err) {
     return new Response(
       JSON.stringify({
         error:
-          "Server chưa cấu hình ANTHROPIC_API_KEY. Vui lòng thiết lập biến môi trường trước khi sinh câu hỏi.",
+          err instanceof ApiKeyError
+            ? err.message
+            : "Không xác định được khóa API.",
       }),
-      { status: 500 },
+      { status: err instanceof ApiKeyError ? 400 : 500 },
     );
   }
 
   const scopedChunks = filterChunksByScope(
     body.chunks,
     body.scopeMode,
-    body.selectedSectionTitles,
+    body.selectedScopeKeys,
   );
 
   if (scopedChunks.length === 0) {
@@ -131,6 +137,7 @@ export async function POST(req: NextRequest) {
             requestedCount: requested,
             audience: body.audience,
             chunks: scopedChunks,
+            apiKey,
             windowStartOffset: windowOffset,
             onProgress: (generated) => {
               send({ type: "progress", bloomLevel, generated, requested });

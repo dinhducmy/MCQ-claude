@@ -17,6 +17,8 @@ export interface GenerateLevelParams {
   requestedCount: number;
   audience: AudienceValue;
   chunks: DocChunk[];
+  /** Khóa API dùng cho lượt sinh này (của máy chủ hoặc của người dùng). */
+  apiKey: string;
   avoidStems?: string[];
   /** Cửa sổ nội dung bắt đầu, để mỗi mức Bloom phủ phần khác nhau của tài liệu. */
   windowStartOffset?: number;
@@ -57,6 +59,7 @@ async function runOneGeneration(
   promptChunks: DocChunk[],
   verificationText: string,
   avoidStems: string[],
+  apiKey: string,
 ): Promise<MCQQuestion[]> {
   const { system, user } = buildGenerationPrompt({
     bloomLevel,
@@ -66,7 +69,7 @@ async function runOneGeneration(
     avoidStems,
   });
 
-  const rawText = await generateWithRetry(system, user);
+  const rawText = await generateWithRetry(system, user, apiKey);
 
   let parsed: unknown;
   try {
@@ -108,6 +111,7 @@ export async function generateBloomLevelQuestions(
     requestedCount,
     audience,
     chunks,
+    apiKey,
     avoidStems: seedAvoidStems,
     windowStartOffset = 0,
     onProgress,
@@ -136,6 +140,7 @@ export async function generateBloomLevelQuestions(
       selectWindowForBatch(windows, windowCursor),
       verificationText,
       [...priorStems, ...accepted.map((q) => q.stem)],
+      apiKey,
     );
     windowCursor += 1;
     accepted.push(...batchQuestions);
@@ -153,6 +158,7 @@ export async function generateBloomLevelQuestions(
       selectWindowForBatch(windows, windowCursor),
       verificationText,
       [...priorStems, ...accepted.map((q) => q.stem)],
+      apiKey,
     );
     windowCursor += 1;
     accepted.push(...retryQuestions);

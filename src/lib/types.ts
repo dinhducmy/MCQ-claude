@@ -54,15 +54,18 @@ export const SCOPE_MODES = [
 
 export type ScopeMode = (typeof SCOPE_MODES)[number]["value"];
 
-export const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 export const MAX_TOTAL_QUESTIONS = 60;
 export const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"] as const;
+
+export type FileType = "pdf" | "docx" | "txt" | "md";
 
 export interface OutlineItem {
   id: string;
   level: number;
   title: string;
   location: string;
+  /** Tên file chứa đề mục này — chỉ có ý nghĩa khi tải lên nhiều tài liệu. */
+  sourceFile?: string;
 }
 
 export interface DocChunk {
@@ -74,17 +77,52 @@ export interface DocChunk {
   endPage?: number;
   headingPath: string[];
   wordCount: number;
+  /** Tên file chứa đoạn này — chỉ có ý nghĩa khi tải lên nhiều tài liệu. */
+  sourceFile?: string;
 }
 
+/** Kết quả bóc tách MỘT file. */
 export interface ParsedDocument {
   fileName: string;
-  fileType: "pdf" | "docx" | "txt" | "md";
+  fileType: FileType;
   sizeBytes: number;
   pageCount: number | null;
   wordCount: number;
   outline: OutlineItem[];
   chunks: DocChunk[];
   warnings: string[];
+}
+
+/** Thông tin tóm tắt của một file trong bộ tài liệu. */
+export interface DocumentSource {
+  fileName: string;
+  fileType: FileType;
+  sizeBytes: number;
+  pageCount: number | null;
+  wordCount: number;
+}
+
+/**
+ * Bộ tài liệu người dùng tải lên (1 hoặc nhiều file) đã được gộp thành một
+ * nguồn nội dung duy nhất để sinh câu hỏi. Khi có nhiều file, vị trí trích
+ * dẫn được gắn thêm tên file để giảng viên truy vết được câu hỏi về đúng
+ * tài liệu gốc.
+ */
+export interface DocumentBundle {
+  /** Nhãn hiển thị & dùng đặt tên file xuất. */
+  title: string;
+  sources: DocumentSource[];
+  pageCount: number | null;
+  wordCount: number;
+  outline: OutlineItem[];
+  chunks: DocChunk[];
+  warnings: string[];
+}
+
+export interface UploadLimits {
+  maxFiles: number;
+  maxFileBytes: number;
+  maxTotalBytes: number;
 }
 
 export interface BloomCounts {
@@ -132,5 +170,5 @@ export interface GenerationConfig {
   counts: BloomCounts;
   audience: AudienceValue;
   scopeMode: ScopeMode;
-  selectedOutlineIds: string[];
+  selectedScopeKeys: string[];
 }

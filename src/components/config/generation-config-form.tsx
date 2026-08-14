@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,22 +26,27 @@ import {
   type ScopeMode,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { scopeKeyOf } from "@/lib/generation/filter-chunks";
 
 export interface GenerationRequestPayload {
   counts: BloomCounts;
   audience: AudienceValue;
   scopeMode: ScopeMode;
-  selectedSectionTitles: string[];
+  /** Khóa đề mục đã chọn (kèm tên file nguồn), xem `scopeKeyOf`. */
+  selectedScopeKeys: string[];
 }
 
 interface GenerationConfigFormProps {
   outline: OutlineItem[];
+  /** Có nhiều hơn 1 tài liệu → hiển thị đề mục theo từng file. */
+  multiSource: boolean;
   onSubmit: (payload: GenerationRequestPayload) => void;
   disabled?: boolean;
 }
 
 export function GenerationConfigForm({
   outline,
+  multiSource,
   onSubmit,
   disabled,
 }: GenerationConfigFormProps) {
@@ -50,7 +55,7 @@ export function GenerationConfigForm({
     AUDIENCE_OPTIONS[0].value,
   );
   const [scopeMode, setScopeMode] = useState<ScopeMode>("all");
-  const [selectedTitles, setSelectedTitles] = useState<Set<string>>(new Set());
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 
   const total = useMemo(
     () => BLOOM_LEVELS.reduce((sum, level) => sum + (counts[level] || 0), 0),
@@ -62,18 +67,26 @@ export function GenerationConfigForm({
     !disabled &&
     total > 0 &&
     !isOverLimit &&
-    (scopeMode === "all" || selectedTitles.size > 0);
+    (scopeMode === "all" || selectedKeys.size > 0);
+
+  /**
+   * Mức Bloom tiếng Việt có dấu cách ("Vận dụng") — id/htmlFor của HTML không
+   * được chứa khoảng trắng, nên dùng thứ tự mức làm định danh.
+   */
+  function bloomInputId(level: (typeof BLOOM_LEVELS)[number]): string {
+    return `bloom-${BLOOM_LEVELS.indexOf(level)}`;
+  }
 
   function updateCount(level: (typeof BLOOM_LEVELS)[number], value: string) {
     const n = Math.max(0, Number.parseInt(value, 10) || 0);
     setCounts((prev) => ({ ...prev, [level]: n }));
   }
 
-  function toggleTitle(title: string) {
-    setSelectedTitles((prev) => {
+  function toggleScopeKey(key: string) {
+    setSelectedKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(title)) next.delete(title);
-      else next.add(title);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
@@ -84,7 +97,7 @@ export function GenerationConfigForm({
       counts,
       audience,
       scopeMode,
-      selectedSectionTitles: Array.from(selectedTitles),
+      selectedScopeKeys: Array.from(selectedKeys),
     });
   }
 
@@ -95,7 +108,10 @@ export function GenerationConfigForm({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {BLOOM_LEVELS.map((level) => (
             <div key={level} className="space-y-1.5 rounded-lg border p-3">
-              <Label htmlFor={`bloom-${level}`} className="flex flex-col items-start gap-0.5">
+              <Label
+                htmlFor={bloomInputId(level)}
+                className="flex flex-col items-start gap-0.5"
+              >
                 <span className="font-medium">
                   {level} <span className="text-muted-foreground">({BLOOM_LEVEL_INFO[level].en})</span>
                 </span>
@@ -104,7 +120,7 @@ export function GenerationConfigForm({
                 </span>
               </Label>
               <Input
-                id={`bloom-${level}`}
+                id={bloomInputId(level)}
                 type="number"
                 min={0}
                 max={MAX_TOTAL_QUESTIONS}
@@ -177,23 +193,35 @@ export function GenerationConfigForm({
             </p>
           ) : (
             <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border p-2">
-              {outline.map((item) => (
-                <label
-                  key={item.id}
-                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
-                  style={{ paddingLeft: `${0.5 + (item.level - 1) * 1}rem` }}
-                >
-                  <Checkbox
-                    checked={selectedTitles.has(item.title)}
-                    onCheckedChange={() => toggleTitle(item.title)}
-                    disabled={disabled}
-                  />
-                  <span className="truncate">{item.title}</span>
-                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                    {item.location}
-                  </span>
-                </label>
-              ))}
+              {outline.map((item, index) => {
+                const key = scopeKeyOf(item.sourceFile, item.title);
+                const showFileHeader =
+                  multiSource &&
+                  item.sourceFile !== outline[index - 1]?.sourceFile;
+                return (
+                  <Fragment key={item.id}>
+                    {showFileHeader && (
+                      <p className="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                        {item.sourceFile}
+                      </p>
+                    )}
+                    <label
+                      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+                      style={{ paddingLeft: `${0.5 + (item.level - 1) * 1}rem` }}
+                    >
+                      <Checkbox
+                        checked={selectedKeys.has(key)}
+                        onCheckedChange={() => toggleScopeKey(key)}
+                        disabled={disabled}
+                      />
+                      <span className="truncate">{item.title}</span>
+                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                        {item.location}
+                      </span>
+                    </label>
+                  </Fragment>
+                );
+              })}
             </div>
           )}
         </div>

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { BLOOM_LEVELS, type AudienceValue, type BloomLevel, type DocChunk } from "@/lib/types";
 import { generateBloomLevelQuestions } from "@/lib/generation/generate-level";
 import { toVietnameseErrorMessage } from "@/lib/generation/error-messages";
+import { ApiKeyError, resolveApiKey } from "@/lib/generation/resolve-api-key";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -41,13 +42,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  let apiKey: string;
+  try {
+    apiKey = resolveApiKey(req.headers);
+  } catch (err) {
     return NextResponse.json(
       {
         error:
-          "Server chưa cấu hình ANTHROPIC_API_KEY. Vui lòng thiết lập biến môi trường trước khi sinh câu hỏi.",
+          err instanceof ApiKeyError
+            ? err.message
+            : "Không xác định được khóa API.",
       },
-      { status: 500 },
+      { status: err instanceof ApiKeyError ? 400 : 500 },
     );
   }
 
@@ -57,6 +63,7 @@ export async function POST(req: NextRequest) {
       requestedCount: 1,
       audience: body.audience,
       chunks: body.chunks,
+      apiKey,
       avoidStems: body.avoidStems,
       // Đổi cửa sổ nội dung mỗi lần sinh lại để tránh lặp lại đúng phần cũ.
       windowStartOffset: body.avoidStems?.length ?? 0,

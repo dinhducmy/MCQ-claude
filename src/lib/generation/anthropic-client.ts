@@ -7,17 +7,26 @@ import {
   TRANSPORT_RETRY_BASE_DELAY_MS,
 } from "@/lib/generation/constants";
 
-let client: Anthropic | null = null;
+/**
+ * Mỗi khóa API dùng một client riêng (khóa của máy chủ hoặc khóa người dùng
+ * tự nhập). Bộ nhớ đệm được xóa khi quá lớn để một tiến trình phục vụ nhiều
+ * người dùng không tích tụ client vô hạn.
+ */
+const MAX_CACHED_CLIENTS = 8;
+const clientCache = new Map<string, Anthropic>();
 
-function getClient(): Anthropic {
-  if (!client) {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error(
-        "Thiếu biến môi trường ANTHROPIC_API_KEY. Vui lòng cấu hình trong .env.local.",
-      );
-    }
-    client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getClient(apiKey: string): Anthropic {
+  if (!apiKey) {
+    throw new Error(
+      "Thiếu khóa API Anthropic. Vui lòng cấu hình ANTHROPIC_API_KEY hoặc nhập khóa trên giao diện.",
+    );
   }
+  const cached = clientCache.get(apiKey);
+  if (cached) return cached;
+
+  if (clientCache.size >= MAX_CACHED_CLIENTS) clientCache.clear();
+  const client = new Anthropic({ apiKey });
+  clientCache.set(apiKey, client);
   return client;
 }
 
@@ -39,12 +48,13 @@ function isRetryableError(err: unknown): boolean {
 export async function generateWithRetry(
   system: string,
   user: string,
+  apiKey: string,
 ): Promise<string> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt < MAX_TRANSPORT_RETRIES; attempt++) {
     try {
-      const response = await getClient().messages.create({
+      const response = await getClient(apiKey).messages.create({
         model: CLAUDE_MODEL,
         max_tokens: MAX_TOKENS_PER_BATCH,
         system,

@@ -38,10 +38,25 @@ ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 **Lưu ý:** Tuyệt đối không commit `.env.local` hoặc khóa API thật vào git.
 
-Nếu chưa cấu hình khóa, ứng dụng vẫn chạy và hiển thị cảnh báo kèm hướng dẫn
-ngay trên giao diện — các bước tải lên, xem trước, xem/sửa và xuất file vẫn
-dùng được, chỉ riêng bước sinh câu hỏi cần khóa API. Sau khi thêm khóa phải
-**khởi động lại server** để nạp biến môi trường mới.
+### Hai cách cung cấp khóa API
+
+Ứng dụng chấp nhận khóa theo thứ tự ưu tiên sau:
+
+1. **Khóa riêng của người dùng** — nhập trực tiếp ở ô "Khóa API Anthropic"
+   trên giao diện. Khóa được lưu trong `localStorage` của trình duyệt và gửi
+   kèm từng yêu cầu sinh câu hỏi qua header `x-anthropic-api-key`. Máy chủ
+   dùng khóa đó để gọi Anthropic API rồi bỏ đi — **không lưu, không ghi log**.
+   Phù hợp khi chia sẻ link công khai: mỗi người dùng trả chi phí phần của
+   mình.
+2. **Khóa của máy chủ** — biến môi trường `ANTHROPIC_API_KEY`. Dùng khi người
+   dùng không nhập khóa riêng. Phù hợp khi ứng dụng chỉ phục vụ nội bộ, vì mọi
+   lượt sinh câu hỏi đều tính vào tài khoản của người triển khai.
+
+Nếu không có khóa nào, ứng dụng vẫn chạy và hiển thị hướng dẫn ngay trên giao
+diện — các bước tải lên, xem trước, xem/sửa và xuất file vẫn dùng được, chỉ
+riêng bước sinh câu hỏi cần khóa. Sau khi thêm biến môi trường phải **khởi
+động lại server** để nạp giá trị mới (khóa nhập trên giao diện có hiệu lực
+ngay, không cần khởi động lại).
 
 ## Chạy ứng dụng
 
@@ -60,10 +75,58 @@ npm run build
 npm run start
 ```
 
+## Triển khai lên Vercel
+
+Dự án là ứng dụng Next.js chuẩn, không cần cấu hình riêng cho Vercel.
+
+1. Đẩy mã nguồn lên GitHub (xem phần "Đưa mã lên GitHub" bên dưới).
+2. Vào https://vercel.com/new → **Import Git Repository** → chọn repo này.
+   Vercel tự nhận diện Next.js; giữ nguyên mọi thiết lập build mặc định.
+3. **Environment Variables** (tùy chọn): thêm `ANTHROPIC_API_KEY` =
+   `sk-ant-...` cho cả ba môi trường Production/Preview/Development nếu muốn
+   máy chủ có khóa sẵn. Bỏ qua bước này nếu muốn mỗi người dùng tự nhập khóa
+   của họ trên giao diện.
+4. Bấm **Deploy**. Sau khi xong, mở URL `*.vercel.app` là dùng được ngay.
+
+Đổi biến môi trường sau khi đã deploy thì phải **Redeploy** để giá trị mới có
+hiệu lực.
+
+### Những giới hạn của Vercel cần biết
+
+- **Dung lượng tải lên**: Vercel chặn thân yêu cầu (request body) lớn hơn
+  4.5 MB ở tầng hạ tầng, trước khi mã của ứng dụng chạy. Vì vậy khi phát hiện
+  đang chạy trên Vercel (biến `VERCEL`), ứng dụng tự hạ giới hạn tải lên
+  xuống **4 MB cho mỗi lần tải** (tổng các file) và báo lỗi rõ ràng ngay ở
+  trình duyệt. Chạy tự quản (máy cá nhân, VPS, Docker) thì giới hạn là 20 MB
+  mỗi file và 40 MB mỗi lần tải. Tài liệu lớn hơn: cắt bớt chương cần dùng,
+  hoặc chuyển .pdf sang .docx/.txt (nhẹ hơn nhiều lần).
+- **Thời gian chạy hàm**: `/api/generate` khai báo `maxDuration = 300` giây.
+  Mức này cần **Fluid Compute** (đang bật mặc định cho project mới trên
+  Vercel, gồm cả gói Hobby). Nếu deploy báo lỗi vượt giới hạn `maxDuration`,
+  hãy bật Fluid Compute trong Settings → Functions, hoặc giảm giá trị này
+  trong `src/app/api/generate/route.ts` xuống 60 và sinh ít câu mỗi lượt.
+- **Khu vực máy chủ**: mặc định Vercel đặt hàm ở Washington D.C. (`iad1`).
+  Người dùng ở Việt Nam có thể chọn Singapore (`sin1`) trong Settings →
+  Functions → Function Region để giảm độ trễ.
+- **Không có cơ sở dữ liệu**: mọi trạng thái nằm trong phiên trình duyệt. Tải
+  lại trang là mất kết quả — hãy xuất file trước khi đóng tab.
+
+## Đưa mã lên GitHub
+
+```bash
+git remote add origin https://github.com/<tài-khoản>/<tên-repo>.git
+git push -u origin <tên-nhánh>
+```
+
+`.gitignore` đã loại trừ `.env*.local` và `node_modules`, nên khóa API thật
+không bị đẩy lên. Trước khi push lần đầu, chạy `git status` để chắc chắn
+không có file `.env.local` nào trong danh sách.
+
 ## Luồng sử dụng
 
-1. **Tải lên**: kéo-thả 1 file .pdf/.docx/.txt/.md (tối đa 20 MB). Ứng dụng
-   hiển thị tên file, số trang, số từ và bản xem trước cấu trúc đề mục.
+1. **Tải lên**: kéo-thả một hoặc nhiều file .pdf/.docx/.txt/.md (tối đa 5
+   file mỗi lần). Ứng dụng hiển thị danh sách file, tổng số trang, số từ và
+   bản xem trước cấu trúc đề mục gộp từ mọi tài liệu.
 2. **Cấu hình**: nhập số lượng câu hỏi cho từng mức Bloom (tổng tối đa 60
    câu), chọn đối tượng học và phạm vi nội dung.
 3. **Sinh câu hỏi**: hệ thống chia tài liệu thành các đoạn có đánh số
@@ -96,9 +159,11 @@ src/
     workflow/                  # Điều phối luồng 5 bước (app-shell)
   lib/
     types.ts            # Kiểu dữ liệu dùng chung
-    parsing/              # Module bóc tách PDF/DOCX/TXT/MD
-    generation/             # Prompt, gọi Anthropic API, xác minh trích dẫn
-    export/                   # Sinh file .docx/.xlsx/.csv
+    limits.ts             # Giới hạn tải lên theo môi trường (Vercel/tự quản)
+    client/                 # Tiện ích phía trình duyệt (khóa API, trạng thái)
+    parsing/                  # Bóc tách PDF/DOCX/TXT/MD + gộp nhiều tài liệu
+    generation/                 # Prompt, gọi Anthropic API, xác minh trích dẫn
+    export/                       # Sinh file .docx/.xlsx/.csv
 ```
 
 ## Trạng thái triển khai
@@ -110,6 +175,8 @@ Dự án được triển khai tuần tự theo 5 bước:
 3. ✅ API sinh câu hỏi + xác minh trích dẫn
 4. ✅ Bảng xem/sửa/sinh lại câu hỏi
 5. ✅ Xuất file .docx/.xlsx/.csv
+6. ✅ Tải lên nhiều tài liệu, khóa API do người dùng tự nhập, sẵn sàng deploy
+   Vercel
 
 ### Bóc tách tài liệu (bước 2)
 
@@ -124,6 +191,18 @@ Dự án được triển khai tuần tự theo 5 bước:
   cùng heuristic heading như PDF.
 - Tài liệu được chia thành các đoạn (`chunk`) ~1800 ký tự, mỗi đoạn giữ nguyên
   vị trí trang/đề mục để phục vụ trích dẫn và xác minh ở bước sinh câu hỏi.
+
+### Nhiều tài liệu cùng lúc
+
+- Tải lên tối đa 5 file mỗi lần; có thể kéo-thả bổ sung từng file, hoặc xóa
+  riêng một file (phần còn lại được bóc tách lại để nội dung luôn khớp danh
+  sách hiện tại).
+- Các file được bóc tách riêng rồi gộp thành **một nguồn nội dung duy nhất**:
+  đoạn văn được đánh số liên tục, đề mục xếp theo từng file.
+- Khi có từ 2 file trở lên, mọi vị trí trích dẫn được gắn tên file gốc
+  (`giao-trinh.pdf · Trang 12`) để mỗi câu hỏi truy vết được về đúng tài liệu.
+- Chọn phạm vi theo đề mục dùng khóa gồm cả tên file, nên hai tài liệu cùng có
+  đề mục "Điều trị" không bị chọn nhầm sang nhau.
 
 ### Sinh câu hỏi + xác minh trích dẫn (bước 3)
 

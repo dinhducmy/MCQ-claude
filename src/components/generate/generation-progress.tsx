@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Progress } from "@/components/ui/progress";
+import { apiKeyHeaders } from "@/lib/client/api-key";
 import type { BloomLevel, DocChunk, MCQQuestion } from "@/lib/types";
 import { BLOOM_LEVELS } from "@/lib/types";
 import type { GenerationRequestPayload } from "@/components/config/generation-config-form";
@@ -45,7 +46,7 @@ export function GenerationProgress({
       try {
         const res = await fetch("/api/generate", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...apiKeyHeaders() },
           body: JSON.stringify({ chunks, ...payload }),
         });
 

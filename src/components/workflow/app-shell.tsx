@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Stethoscope } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,7 @@ import {
 import { FileDropzone } from "@/components/upload/file-dropzone";
 import { DocumentPreview } from "@/components/upload/document-preview";
 import { StepIndicator, type StepDef } from "@/components/workflow/step-indicator";
-import { ApiKeyNotice } from "@/components/workflow/api-key-notice";
+import { ApiKeyPanel } from "@/components/workflow/api-key-panel";
 import {
   GenerationConfigForm,
   type GenerationRequestPayload,
@@ -23,7 +24,9 @@ import { GenerationProgress } from "@/components/generate/generation-progress";
 import { QuestionsTable } from "@/components/review/questions-table";
 import { ExportPanel } from "@/components/export/export-panel";
 import { filterChunksByScope } from "@/lib/generation/filter-chunks";
-import type { MCQQuestion, ParsedDocument } from "@/lib/types";
+import { useServerStatus } from "@/lib/client/use-server-status";
+import { FALLBACK_UPLOAD_LIMITS } from "@/lib/limits";
+import type { DocumentBundle, MCQQuestion } from "@/lib/types";
 
 const STEPS: StepDef[] = [
   { id: 1, label: "Tải lên" },
@@ -34,11 +37,9 @@ const STEPS: StepDef[] = [
 ];
 
 export function AppShell() {
+  const { status } = useServerStatus();
   const [currentStep, setCurrentStep] = useState(1);
-  const [parsedDocument, setParsedDocument] = useState<ParsedDocument | null>(
-    null,
-  );
-  const [, setUploadedFile] = useState<File | null>(null);
+  const [bundle, setBundle] = useState<DocumentBundle | null>(null);
   const [generationPayload, setGenerationPayload] =
     useState<GenerationRequestPayload | null>(null);
   const [questions, setQuestions] = useState<MCQQuestion[] | null>(null);
@@ -49,18 +50,27 @@ export function AppShell() {
     ? 5
     : generationPayload
       ? 3
-      : parsedDocument
+      : bundle
         ? 2
         : 1;
 
-  function handleParsed(doc: ParsedDocument, file: File) {
-    setParsedDocument(doc);
-    setUploadedFile(file);
+  function handleParsed(next: DocumentBundle) {
+    setBundle(next);
+    // Thay đổi bộ tài liệu làm mọi câu hỏi đã sinh không còn khớp nguồn
+    // (trích dẫn, phạm vi đề mục), nên phải bỏ kết quả cũ thay vì giữ lại
+    // một bộ câu hỏi không truy vết được về tài liệu hiện tại.
+    if (questions || generationPayload) {
+      setQuestions(null);
+      setGenerationPayload(null);
+      setGenerationError(null);
+      toast.info(
+        "Bộ tài liệu đã thay đổi — các câu hỏi đã sinh trước đó được xóa. Vui lòng cấu hình và sinh lại.",
+      );
+    }
   }
 
   function handleReset() {
-    setParsedDocument(null);
-    setUploadedFile(null);
+    setBundle(null);
     setGenerationPayload(null);
     setQuestions(null);
     setGenerationError(null);
@@ -106,7 +116,7 @@ export function AppShell() {
         </div>
       </header>
 
-      <ApiKeyNotice />
+      <ApiKeyPanel />
 
       <Card>
         <CardContent>
@@ -123,22 +133,24 @@ export function AppShell() {
           <CardHeader>
             <CardTitle>Bước 1 · Tải lên tài liệu</CardTitle>
             <CardDescription>
-              Kéo-thả 1 file .pdf, .docx, .txt hoặc .md, dung lượng tối đa
-              20 MB.
+              Kéo-thả một hoặc nhiều file .pdf, .docx, .txt, .md. Nhiều tài
+              liệu được gộp thành một nguồn nội dung, vị trí trích dẫn có ghi
+              rõ tên file gốc.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <FileDropzone
               onParsed={handleParsed}
-              parsedDocument={parsedDocument}
+              bundle={bundle}
               onReset={handleReset}
+              limits={status?.uploadLimits ?? FALLBACK_UPLOAD_LIMITS}
             />
-            {parsedDocument && <DocumentPreview doc={parsedDocument} />}
+            {bundle && <DocumentPreview bundle={bundle} />}
           </CardContent>
         </Card>
       )}
 
-      {currentStep === 2 && parsedDocument && (
+      {currentStep === 2 && bundle && (
         <Card>
           <CardHeader>
             <CardTitle>Bước 2 · Cấu hình sinh câu hỏi</CardTitle>
@@ -149,14 +161,15 @@ export function AppShell() {
           </CardHeader>
           <CardContent>
             <GenerationConfigForm
-              outline={parsedDocument.outline}
+              outline={bundle.outline}
+              multiSource={bundle.sources.length > 1}
               onSubmit={handleConfigSubmit}
             />
           </CardContent>
         </Card>
       )}
 
-      {currentStep === 3 && parsedDocument && generationPayload && (
+      {currentStep === 3 && bundle && generationPayload && (
         <Card>
           <CardHeader>
             <CardTitle>Bước 3 · Đang sinh câu hỏi</CardTitle>
@@ -171,7 +184,7 @@ export function AppShell() {
             {questions === null ? (
               <GenerationProgress
                 key={generationRunId}
-                chunks={parsedDocument.chunks}
+                chunks={bundle.chunks}
                 payload={generationPayload}
                 onComplete={handleGenerationComplete}
                 onError={handleGenerationError}
@@ -201,7 +214,7 @@ export function AppShell() {
         </Card>
       )}
 
-      {currentStep === 4 && questions && parsedDocument && generationPayload && (
+      {currentStep === 4 && questions && bundle && generationPayload && (
         <Card>
           <CardHeader>
             <CardTitle>Bước 4 · Xem & sửa câu hỏi</CardTitle>
@@ -215,9 +228,9 @@ export function AppShell() {
               questions={questions}
               onChange={setQuestions}
               chunks={filterChunksByScope(
-                parsedDocument.chunks,
+                bundle.chunks,
                 generationPayload.scopeMode,
-                generationPayload.selectedSectionTitles,
+                generationPayload.selectedScopeKeys,
               )}
               audience={generationPayload.audience}
             />
@@ -232,7 +245,7 @@ export function AppShell() {
         </Card>
       )}
 
-      {currentStep === 5 && questions && parsedDocument && (
+      {currentStep === 5 && questions && bundle && (
         <Card>
           <CardHeader>
             <CardTitle>Bước 5 · Xuất file</CardTitle>
@@ -241,7 +254,7 @@ export function AppShell() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ExportPanel questions={questions} title={parsedDocument.fileName} />
+            <ExportPanel questions={questions} title={bundle.title} />
           </CardContent>
         </Card>
       )}
@@ -256,10 +269,7 @@ export function AppShell() {
           Quay lại
         </Button>
         {currentStep === 1 && (
-          <Button
-            disabled={!parsedDocument}
-            onClick={() => setCurrentStep(2)}
-          >
+          <Button disabled={!bundle} onClick={() => setCurrentStep(2)}>
             Tiếp tục
             <ArrowRight className="size-4" />
           </Button>

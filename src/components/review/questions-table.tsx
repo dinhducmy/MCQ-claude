@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { QuestionEditDialog } from "@/components/review/question-edit-dialog";
+import { apiKeyHeaders } from "@/lib/client/api-key";
 import {
   BLOOM_LEVELS,
   type AudienceValue,
@@ -74,7 +75,7 @@ export function QuestionsTable({
 
       const res = await fetch("/api/regenerate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...apiKeyHeaders() },
         body: JSON.stringify({
           chunks,
           bloomLevel: question.bloom_level,
